@@ -3,7 +3,6 @@ package admin
 import (
 	"log"
 	"net/http"
-	"path"
 	"reflect"
 	"regexp"
 	"strings"
@@ -70,27 +69,27 @@ func (r *Router) Delete(path string, handle handle) {
 }
 
 func (admin *Admin) MountTo(prefix string, mux *http.ServeMux) {
-	prefix = "/" + strings.Trim(prefix, "/")
+	admin.RouterPrefix = "/" + strings.Trim(prefix, "/")
+
 	router := admin.router
-	router.Prefix = prefix
 
 	admin.compile()
 
 	controller := &controller{admin}
-	router.Get("^/?$", controller.Dashboard)
-	router.Get("^/!search$", controller.SearchCenter)
-	router.Get("^/[^/]+/new$", controller.New)
-	router.Post("^/[^/]+$", controller.Create)
-	router.Post("^/[^/]+/action/[^/]+(\\?.*)?$", controller.Action)
-	router.Get("^/[^/]+/.*/edit$", controller.Edit)
-	router.Get("^/[^/]+/.*$", controller.Show)
-	router.Put("^/[^/]+/.*$", controller.Update)
-	router.Post("^/[^/]+/.*$", controller.Update)
-	router.Delete("^/[^/]+/.*$", controller.Delete)
-	router.Get("^/[^/]+$", controller.Index)
+	router.GET("^/?$", controller.Dashboard)
+	// router.GET("^/!search$", controller.SearchCenter)
+	// router.GET("^/[^/]+/new$", controller.New)
+	// router.POST("^/[^/]+$", controller.Create)
+	// router.POST("^/[^/]+/action/[^/]+(\\?.*)?$", controller.Action)
+	// router.GET("^/[^/]+/.*/edit$", controller.Edit)
+	// router.GET("^/[^/]+/.*$", controller.Show)
+	// router.PUT("^/[^/]+/.*$", controller.Update)
+	// router.POST("^/[^/]+/.*$", controller.Update)
+	// router.DELETE("^/[^/]+/.*$", controller.Delete)
+	// router.GET("^/[^/]+$", controller.Index)
 
-	mux.Handle(prefix, admin)     // /:prefix
-	mux.Handle(prefix+"/", admin) // /:prefix/:xxx
+	mux.Handle(admin.RouterPrefix, router)     // /:prefix
+	mux.Handle(admin.RouterPrefix+"/", router) // /:prefix/:xxx
 }
 
 func (res *Resource) configure() {
@@ -111,49 +110,49 @@ func (res *Resource) configure() {
 func (admin *Admin) compile() {
 	admin.generateMenuLinks()
 
-	router := admin.GetRouter()
-
 	for _, res := range admin.resources {
 		res.configure()
 	}
 
-	router.Use(func(context *Context, middleware *Middleware) {
-		w := context.Writer
-		req := context.Request
+	// router := admin.GetRouter()
 
-		// 128 MB
-		req.ParseMultipartForm(32 << 22)
-		if len(req.Form["_method"]) > 0 {
-			req.Method = strings.ToUpper(req.Form["_method"][0])
-		}
+	// router.Use(func(context *Context, middleware *Middleware) {
+	// 	w := context.Writer
+	// 	req := context.Request
 
-		var pathMatch = regexp.MustCompile(path.Join(router.Prefix, `(\w+)(?:/(\w+))?[^/]*`))
-		var matches = pathMatch.FindStringSubmatch(req.URL.Path)
-		if len(matches) > 1 {
-			context.setResource(admin.GetResource(matches[1]))
-			if len(matches) > 2 {
-				context.ResourceID = matches[2]
-			}
-		}
+	// 	// 128 MB
+	// 	req.ParseMultipartForm(32 << 22)
+	// 	if len(req.Form["_method"]) > 0 {
+	// 		req.Method = strings.ToUpper(req.Form["_method"][0])
+	// 	}
 
-		handlers := router.routers[strings.ToUpper(req.Method)]
-		relativePath := strings.TrimPrefix(req.URL.Path, router.Prefix)
-		for _, handler := range handlers {
-			if handler.Path.MatchString(relativePath) {
-				handler.Handle(context)
-				return
-			}
-		}
-		http.NotFound(w, req)
-	})
+	// 	var pathMatch = regexp.MustCompile(path.Join(router.Prefix, `(\w+)(?:/(\w+))?[^/]*`))
+	// 	var matches = pathMatch.FindStringSubmatch(req.URL.Path)
+	// 	if len(matches) > 1 {
+	// 		context.setResource(admin.GetResource(matches[1]))
+	// 		if len(matches) > 2 {
+	// 			context.ResourceID = matches[2]
+	// 		}
+	// 	}
 
-	for index, middleware := range router.middlewares {
-		var next *Middleware
-		if len(router.middlewares) > index+1 {
-			next = router.middlewares[index+1]
-		}
-		middleware.next = next
-	}
+	// 	handlers := router.routers[strings.ToUpper(req.Method)]
+	// 	relativePath := strings.TrimPrefix(req.URL.Path, router.Prefix)
+	// 	for _, handler := range handlers {
+	// 		if handler.Path.MatchString(relativePath) {
+	// 			handler.Handle(context)
+	// 			return
+	// 		}
+	// 	}
+	// 	http.NotFound(w, req)
+	// })
+
+	// for index, middleware := range router.middlewares {
+	// 	var next *Middleware
+	// 	if len(router.middlewares) > index+1 {
+	// 		next = router.middlewares[index+1]
+	// 	}
+	// 	middleware.next = next
+	// }
 }
 
 func (admin *Admin) NewContext(w http.ResponseWriter, r *http.Request) *Context {
@@ -163,7 +162,7 @@ func (admin *Admin) NewContext(w http.ResponseWriter, r *http.Request) *Context 
 }
 
 func (admin *Admin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	var relativePath = strings.TrimPrefix(req.URL.Path, admin.router.Prefix)
+	var relativePath = strings.TrimPrefix(req.URL.Path, admin.RouterPrefix)
 	var context = admin.NewContext(w, req)
 
 	if regexp.MustCompile("^/assets/.*$").MatchString(relativePath) {
@@ -192,6 +191,6 @@ func (admin *Admin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	context.Roles = roles.MatchedRoles(req, currentUser)
 
-	firstStack := admin.router.middlewares[0]
-	firstStack.Handler(context, firstStack)
+	// firstStack := admin.router.middlewares[0]
+	// firstStack.Handler(context, firstStack)
 }

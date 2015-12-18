@@ -6,6 +6,8 @@ import (
 	"path"
 	"strings"
 
+	"golang.org/x/net/context"
+
 	"github.com/qor/qor/roles"
 	"github.com/qor/responder"
 )
@@ -24,8 +26,11 @@ func (context *Context) checkResourcePermission(permission roles.PermissionMode)
 	return false
 }
 
-func (ac *controller) Dashboard(context *Context) {
-	context.Execute("dashboard", nil)
+func (ac *controller) Dashboard(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+
+	// func (ac *controller) Dashboard(context *Context) {
+	// 	context.Execute("dashboard", nil)
+	// }
 }
 
 func (ac *controller) Index(context *Context) {
@@ -184,7 +189,7 @@ func (ac *controller) Delete(context *Context) {
 		}
 
 		responder.With("html", func() {
-			http.Redirect(context.Writer, context.Request, path.Join(ac.GetRouter().Prefix, res.ToParam()), status)
+			http.Redirect(context.Writer, context.Request, path.Join(ac.RouterPrefix, res.ToParam()), status)
 		}).With("json", func() {
 			context.Writer.WriteHeader(status)
 		}).Respond(context.Request)
@@ -221,7 +226,7 @@ func (ac *controller) Action(context *Context) {
 }
 
 func (ac *controller) Asset(context *Context) {
-	file := strings.TrimPrefix(context.Request.URL.Path, ac.GetRouter().Prefix)
+	file := strings.TrimPrefix(context.Request.URL.Path, ac.RouterPrefix)
 	if filename, err := context.findFile(file); err == nil {
 		http.ServeFile(context.Writer, context.Request, filename)
 	} else {

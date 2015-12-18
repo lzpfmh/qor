@@ -45,22 +45,22 @@ func (context *Context) isNewRecord(value interface{}) bool {
 
 func (context *Context) newResourcePath(value interface{}) string {
 	if res, ok := value.(*Resource); ok {
-		return path.Join(context.Admin.router.Prefix, res.ToParam(), "new")
+		return path.Join(context.Admin.RouterPrefix, res.ToParam(), "new")
 	} else {
-		return path.Join(context.Admin.router.Prefix, context.Resource.ToParam(), "new")
+		return path.Join(context.Admin.RouterPrefix, context.Resource.ToParam(), "new")
 	}
 }
 
 func (context *Context) editResourcePath(value interface{}, res *Resource) string {
 	primaryKey := fmt.Sprint(context.GetDB().NewScope(value).PrimaryKeyValue())
-	return path.Join(context.Admin.router.Prefix, res.ToParam(), primaryKey, "/edit")
+	return path.Join(context.Admin.RouterPrefix, res.ToParam(), primaryKey, "/edit")
 }
 
 func (context *Context) UrlFor(value interface{}, resources ...*Resource) string {
 	if admin, ok := value.(*Admin); ok {
-		return admin.router.Prefix
+		return admin.RouterPrefix
 	} else if res, ok := value.(*Resource); ok {
-		return path.Join(context.Admin.router.Prefix, res.ToParam())
+		return path.Join(context.Admin.RouterPrefix, res.ToParam())
 	} else {
 		var res *Resource
 
@@ -74,7 +74,7 @@ func (context *Context) UrlFor(value interface{}, resources ...*Resource) string
 
 		if res != nil {
 			primaryKey := context.GetDB().NewScope(value).PrimaryKeyValue()
-			return path.Join(context.Admin.router.Prefix, res.ToParam(), fmt.Sprintf("%v", primaryKey))
+			return path.Join(context.Admin.RouterPrefix, res.ToParam(), fmt.Sprintf("%v", primaryKey))
 		}
 	}
 	return ""
@@ -474,7 +474,7 @@ func (context *Context) themesClass() (result string) {
 func (context *Context) javaScriptTag(names ...string) template.HTML {
 	var results []string
 	for _, name := range names {
-		name = path.Join(context.Admin.GetRouter().Prefix, "assets", "javascripts", name+".js")
+		name = path.Join(context.Admin.RouterPrefix, "assets", "javascripts", name+".js")
 		results = append(results, fmt.Sprintf(`<script src="%s"></script>`, name))
 	}
 	return template.HTML(strings.Join(results, ""))
@@ -483,7 +483,7 @@ func (context *Context) javaScriptTag(names ...string) template.HTML {
 func (context *Context) styleSheetTag(names ...string) template.HTML {
 	var results []string
 	for _, name := range names {
-		name = path.Join(context.Admin.GetRouter().Prefix, "assets", "stylesheets", name+".css")
+		name = path.Join(context.Admin.RouterPrefix, "assets", "stylesheets", name+".css")
 		results = append(results, fmt.Sprintf(`<link type="text/css" rel="stylesheet" href="%s">`, name))
 	}
 	return template.HTML(strings.Join(results, ""))
@@ -502,7 +502,7 @@ func (context *Context) loadThemeStyleSheets() template.HTML {
 		var file = path.Join("assets", "stylesheets", theme+".css")
 		for _, view := range context.getViewPaths() {
 			if _, err := os.Stat(path.Join(view, file)); err == nil {
-				results = append(results, fmt.Sprintf(`<link type="text/css" rel="stylesheet" href="%s?theme=%s">`, path.Join(context.Admin.GetRouter().Prefix, file), theme))
+				results = append(results, fmt.Sprintf(`<link type="text/css" rel="stylesheet" href="%s?theme=%s">`, path.Join(context.Admin.RouterPrefix, file), theme))
 				break
 			}
 		}
@@ -517,7 +517,7 @@ func (context *Context) loadThemeJavaScripts() template.HTML {
 		var file = path.Join("assets", "javascripts", theme+".js")
 		for _, view := range context.getViewPaths() {
 			if _, err := os.Stat(path.Join(view, file)); err == nil {
-				results = append(results, fmt.Sprintf(`<script src="%s?theme=%s"></script>`, path.Join(context.Admin.GetRouter().Prefix, file), theme))
+				results = append(results, fmt.Sprintf(`<script src="%s?theme=%s"></script>`, path.Join(context.Admin.RouterPrefix, file), theme))
 				break
 			}
 		}
@@ -535,7 +535,7 @@ func (context *Context) loadAdminJavaScripts() template.HTML {
 	var file = path.Join("assets", "javascripts", strings.ToLower(strings.Replace(siteName, " ", "_", -1))+".js")
 	for _, view := range context.getViewPaths() {
 		if _, err := os.Stat(path.Join(view, file)); err == nil {
-			return template.HTML(fmt.Sprintf(`<script src="%s"></script>`, path.Join(context.Admin.GetRouter().Prefix, file)))
+			return template.HTML(fmt.Sprintf(`<script src="%s"></script>`, path.Join(context.Admin.RouterPrefix, file)))
 		}
 	}
 	return ""
@@ -550,7 +550,7 @@ func (context *Context) loadAdminStyleSheets() template.HTML {
 	var file = path.Join("assets", "stylesheets", strings.ToLower(strings.Replace(siteName, " ", "_", -1))+".css")
 	for _, view := range context.getViewPaths() {
 		if _, err := os.Stat(path.Join(view, file)); err == nil {
-			return template.HTML(fmt.Sprintf(`<link type="text/css" rel="stylesheet" href="%s">`, path.Join(context.Admin.GetRouter().Prefix, file)))
+			return template.HTML(fmt.Sprintf(`<link type="text/css" rel="stylesheet" href="%s">`, path.Join(context.Admin.RouterPrefix, file)))
 		}
 	}
 	return ""
@@ -682,7 +682,7 @@ func (context *Context) FuncMap() template.FuncMap {
 		},
 		"url_for":                context.UrlFor,
 		"link_to":                context.LinkTo,
-		"search_center_path":     func() string { return path.Join(context.Admin.router.Prefix, "!search") },
+		"search_center_path":     func() string { return path.Join(context.Admin.RouterPrefix, "!search") },
 		"patch_current_url":      context.patchCurrentURL,
 		"patch_url":              context.patchURL,
 		"new_resource_path":      context.newResourcePath,

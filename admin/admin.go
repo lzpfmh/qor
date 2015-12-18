@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/jinzhu/inflection"
+	"github.com/qor/httprouter"
 	"github.com/qor/qor"
 	"github.com/qor/qor/resource"
 	"github.com/qor/qor/utils"
@@ -18,12 +19,13 @@ const (
 type Admin struct {
 	Config          *qor.Config
 	SiteName        string
+	RouterPrefix    string
 	I18n            I18n
 	menus           []*Menu
 	resources       []*Resource
 	searchResources []*Resource
 	auth            Auth
-	router          *Router
+	router          *httprouter.Router
 	funcMaps        template.FuncMap
 }
 
@@ -35,7 +37,7 @@ func New(config *qor.Config) *Admin {
 	admin := Admin{
 		funcMaps: make(template.FuncMap),
 		Config:   config,
-		router:   newRouter(),
+		router:   httprouter.New(),
 	}
 	return &admin
 }
@@ -52,7 +54,7 @@ func (admin *Admin) RegisterFuncMap(name string, fc interface{}) {
 	admin.funcMaps[name] = fc
 }
 
-func (admin *Admin) GetRouter() *Router {
+func (admin *Admin) GetRouter() *httprouter.Router {
 	return admin.router
 }
 

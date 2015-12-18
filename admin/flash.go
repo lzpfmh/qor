@@ -30,7 +30,7 @@ func (context *Context) writeFlashes() {
 	}
 
 	if bytes, err := json.Marshal(flashes); err == nil {
-		prefix := context.Admin.GetRouter().Prefix
+		prefix := context.Admin.RouterPrefix
 		cookie := http.Cookie{Name: "qor-flashes", Value: base64.StdEncoding.EncodeToString(bytes), Path: prefix}
 		http.SetCookie(context.Writer, &cookie)
 	}

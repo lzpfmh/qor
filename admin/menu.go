@@ -44,7 +44,7 @@ func getMenu(menus []*Menu, name string) *Menu {
 
 // Generate menu links by current route. e.g "/products" to "/admin/products"
 func (admin *Admin) generateMenuLinks() {
-	prefixMenuLinks(admin.menus, admin.router.Prefix)
+	prefixMenuLinks(admin.menus, admin.RouterPrefix)
 }
 
 func prefixMenuLinks(menus []*Menu, prefix string) {
