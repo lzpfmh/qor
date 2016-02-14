@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +25,12 @@ type Context struct {
 	Result   interface{}
 }
 
+func (admin *Admin) NewContext(w http.ResponseWriter, r *http.Request) *Context {
+	context := Context{Context: &qor.Context{Config: admin.Config, Request: r, Writer: w}, Admin: admin}
+
+	return &context
+}
+
 func (context *Context) clone() *Context {
 	return &Context{
 		Context:  context.Context,
@@ -33,6 +40,7 @@ func (context *Context) clone() *Context {
 		Admin:    context.Admin,
 		Result:   context.Result,
 		Content:  context.Content,
+		Action:   context.Action,
 	}
 }
 
@@ -45,7 +53,10 @@ func (context *Context) resourcePath() string {
 }
 
 func (context *Context) setResource(res *Resource) *Context {
-	context.Resource = res
+	if res != nil {
+		context.Resource = res
+		context.ResourceID = res.GetPrimaryValue(context.Request)
+	}
 	context.Searcher = &Searcher{Context: context}
 	return context
 }
@@ -135,7 +146,7 @@ func (context *Context) Execute(name string, result interface{}) {
 	var tmpl *template.Template
 	var cacheKey string
 
-	if name == "show" && !context.Resource.IsSetShowAttrs {
+	if name == "show" && !context.Resource.isSetShowAttrs {
 		name = "edit"
 	}
 
@@ -169,6 +180,7 @@ func (context *Context) Execute(name string, result interface{}) {
 		tmpl = t
 	}
 
+	context.Result = result
 	context.Content = context.Render(name, result)
 	if err := tmpl.Execute(context.Writer, context); err != nil {
 		utils.ExitWithMsg(err)
@@ -176,7 +188,7 @@ func (context *Context) Execute(name string, result interface{}) {
 }
 
 func (context *Context) JSON(name string, result interface{}) {
-	if name == "show" && !context.Resource.IsSetShowAttrs {
+	if name == "show" && !context.Resource.isSetShowAttrs {
 		name = "edit"
 	}
 

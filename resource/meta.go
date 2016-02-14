@@ -12,8 +12,8 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/jinzhu/now"
 	"github.com/qor/qor"
-	"github.com/qor/qor/roles"
 	"github.com/qor/qor/utils"
+	"github.com/qor/roles"
 )
 
 type Metaor interface {
@@ -98,9 +98,13 @@ func (meta Meta) HasPermission(mode roles.PermissionMode, context *qor.Context) 
 	return meta.Permission.HasPermission(mode, context.Roles...)
 }
 
+func (meta *Meta) SetPermission(permission *roles.Permission) {
+	meta.Permission = permission
+}
+
 func (meta *Meta) PreInitialize() error {
 	if meta.Name == "" {
-		utils.ExitWithMsg("Meta should have name: %v", reflect.ValueOf(meta).Type())
+		utils.ExitWithMsg("Meta should have name: %v", reflect.TypeOf(meta))
 	} else if meta.FieldName == "" {
 		meta.FieldName = meta.Name
 	}
@@ -167,11 +171,7 @@ func (meta *Meta) Initialize() error {
 						context.GetDB().Model(value).Related(f.Field.Addr().Interface(), meta.FieldName)
 					}
 
-					if f.Field.CanAddr() {
-						return f.Field.Addr().Interface()
-					} else {
-						return f.Field.Interface()
-					}
+					return f.Field.Interface()
 				}
 
 				return ""
@@ -288,7 +288,7 @@ func (meta *Meta) Initialize() error {
 							var buf = bytes.NewBufferString("")
 							json.NewEncoder(buf).Encode(value)
 							if err := json.NewDecoder(strings.NewReader(buf.String())).Decode(field.Addr().Interface()); err != nil {
-								utils.ExitWithMsg("Can't set value %v to %v [meta %v]", reflect.ValueOf(value).Type(), field.Type(), meta)
+								utils.ExitWithMsg("Can't set value %v to %v [meta %v]", reflect.TypeOf(value), field.Type(), meta)
 							}
 						}
 					}

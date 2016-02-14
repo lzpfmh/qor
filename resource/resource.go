@@ -5,7 +5,7 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/qor/qor"
-	"github.com/qor/qor/roles"
+	"github.com/qor/roles"
 )
 
 type Resourcer interface {
@@ -70,7 +70,7 @@ func (res *Resource) NewStruct() interface{} {
 }
 
 func (res *Resource) NewSlice() interface{} {
-	sliceType := reflect.SliceOf(reflect.ValueOf(res.Value).Type())
+	sliceType := reflect.SliceOf(reflect.TypeOf(res.Value))
 	slice := reflect.MakeSlice(sliceType, 0, 0)
 	slicePtr := reflect.New(sliceType)
 	slicePtr.Elem().Set(slice)

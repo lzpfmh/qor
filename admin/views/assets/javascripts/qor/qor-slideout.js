@@ -1,3 +1,5 @@
+$.fn.qorSliderAfterShow = {};
+
 (function (factory) {
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as anonymous module.
@@ -30,6 +32,8 @@
   var CLASS_IS_SHOWN = 'is-shown';
   var CLASS_IS_SLIDED = 'is-slided';
   var CLASS_IS_SELECTED = 'is-selected';
+  var CLASS_MAIN_CONTENT = '.mdl-layout__content.qor-page';
+  var CLASS_HEADER_LOCALE = '.qor-actions__locale';
 
   function QorSlideout(element, options) {
     this.$element = $(element);
@@ -112,29 +116,27 @@
 
         if (target === slideout) {
           break;
+        } else if ($target.data('dismiss') === 'slideout') {
+          this.hide();
+          break;
+        } else if ($target.is('table.qor-table > tbody > tr[data-url]')) {
+          if ($(e.target).parents('.qor-table__actions').size() > 0) {
+            return;
+          }
+          // only load when not under loading and not activated
+          if (!this.loading && !$target.hasClass(CLASS_IS_SELECTED)) {
+            $this.one(EVENT_SHOW, toggleClass);
+            data = $target.data();
+            this.load(data.url);
+          }
+          break;
         } else if ($target.data('url')) {
           e.preventDefault();
           data = $target.data();
           this.load(data.url, data);
           break;
-        } else if ($target.data('dismiss') === 'slideout') {
-          this.hide();
-          break;
-        } else if ($target.is('tbody > tr')) {
-          if (!this.disabled && !$target.hasClass(CLASS_IS_SELECTED)) {
-            $this.one(EVENT_SHOW, toggleClass);
-            this.load($target.find('.qor-button--edit').attr('href'));
-          }
-
-          break;
-        } else if ($target.is('.qor-button--new')) {
-          e.preventDefault();
-          this.load($target.attr('href'));
-          break;
         } else {
-          if ($target.is('.qor-button--edit') || $target.is('.qor-button--delete')) {
-            e.preventDefault();
-          } else if ($target.is('a')) {
+          if ($target.is('a')) {
             break;
           }
 
@@ -217,20 +219,26 @@
     load: function (url, data) {
       var options = this.options;
       var method;
+      var dataType;
       var load;
 
-      if (!url || this.disabled) {
+      if (!url || this.loading) {
         return;
       }
 
-      this.disabled = true;
+      this.loading = true;
       data = $.isPlainObject(data) ? data : {};
+
       method = data.method ? data.method : 'GET';
+      dataType = data.datatype ? data.datatype : 'html';
+
+      data.url = data.method = data.datatype = undefined;
 
       load = $.proxy(function () {
         $.ajax(url, {
           method: method,
           data: data,
+          dataType: dataType,
           success: $.proxy(function (response) {
             var $response;
             var $content;
@@ -238,11 +246,7 @@
             if (method === 'GET') {
               $response = $(response);
 
-              if ($response.is(options.content)) {
-                $content = $response;
-              } else {
-                $content = $response.find(options.content);
-              }
+              $content = $response.find(CLASS_MAIN_CONTENT);
 
               if (!$content.length) {
                 return;
@@ -251,6 +255,7 @@
               $content.find('.qor-button--cancel').attr('data-dismiss', 'slideout').removeAttr('href');
               this.$title.html($response.find(options.title).html());
               this.$body.html($content.html());
+              this.$body.find(CLASS_HEADER_LOCALE).remove();
 
               this.$slideout.one(EVENT_SHOWN, function () {
 
@@ -260,20 +265,44 @@
 
                 // Destroy all Qor components within the slideout
                 $(this).trigger('disable');
+
               });
 
               this.show();
+
+              // callback for after slider loaded HTML
+              if (options.afterShow){
+                var qorSliderAfterShow = $.fn.qorSliderAfterShow;
+
+                for (var name in qorSliderAfterShow) {
+                  if (qorSliderAfterShow.hasOwnProperty(name)) {
+                    qorSliderAfterShow[name].call(this, url);
+                  }
+                }
+              }
+
             } else {
               if (data.returnUrl) {
-                this.disabled = false; // For reload
+                this.loading = false; // For reload
                 this.load(data.returnUrl);
               } else {
                 this.refresh();
               }
             }
           }, this),
+          error: $.proxy (function (response) {
+            var errors;
+            if ($('.qor-error span').size() > 0) {
+              errors = $('.qor-error span').map(function () {
+                return $(this).text();
+              }).get().join(', ');
+            } else {
+              errors = response.responseText;
+            }
+            window.alert(response.responseText);
+          }, this),
           complete: $.proxy(function () {
-            this.disabled = false;
+            this.loading = false;
           }, this),
         });
       }, this);
@@ -412,7 +441,7 @@
     var selector = '.qor-theme-slideout';
     var options = {
           title: '.qor-form-title, .mdl-layout-title',
-          content: '.qor-form-container',
+          afterShow: $.fn.qorSliderAfterShow ? $.fn.qorSliderAfterShow : null
         };
 
     $(document).

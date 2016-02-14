@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -12,16 +13,19 @@ import (
 	"github.com/jinzhu/now"
 	"github.com/qor/qor"
 	"github.com/qor/qor/resource"
-	"github.com/qor/qor/roles"
 	"github.com/qor/qor/utils"
+	"github.com/qor/roles"
 )
 
 type Resource struct {
 	resource.Resource
+	Config        *Config
+	Metas         []*Meta
+	Actions       []*Action
+	SearchHandler func(keyword string, context *qor.Context) *gorm.DB
+
 	admin          *Admin
-	Config         *Config
-	Metas          []*Meta
-	actions        []*Action
+	base           *Resource
 	scopes         []*Scope
 	filters        map[string]*Filter
 	searchAttrs    *[]string
@@ -30,22 +34,35 @@ type Resource struct {
 	newSections    []*Section
 	editSections   []*Section
 	showSections   []*Section
-	IsSetShowAttrs bool
+	isSetShowAttrs bool
 	cachedMetas    *map[string][]*Meta
-	SearchHandler  func(keyword string, context *qor.Context) *gorm.DB
 }
 
-func (res *Resource) Meta(meta *Meta) {
+func (res *Resource) Meta(meta *Meta) *Meta {
 	if res.GetMeta(meta.Name) != nil {
 		utils.ExitWithMsg("Duplicated meta %v defined for resource %v", meta.Name, res.Name)
 	}
 	res.Metas = append(res.Metas, meta)
-	meta.base = res
+	meta.baseResource = res
 	meta.updateMeta()
+	return meta
 }
 
 func (res Resource) GetAdmin() *Admin {
 	return res.admin
+}
+
+// GetPrimaryValue get priamry value from request
+func (res Resource) GetPrimaryValue(request *http.Request) string {
+	if request != nil {
+		return request.URL.Query().Get(res.ParamIDName())
+	}
+	return ""
+}
+
+// ParamIDName return param name for primary key like :product_id
+func (res Resource) ParamIDName() string {
+	return fmt.Sprintf(":%v_id", inflection.Singular(res.ToParam()))
 }
 
 func (res Resource) ToParam() string {
@@ -68,6 +85,10 @@ func (res Resource) UseTheme(theme string) []string {
 	return res.Config.Themes
 }
 
+func (res *Resource) Decode(context *qor.Context, value interface{}) error {
+	return resource.Decode(context, value, res)
+}
+
 func (res *Resource) convertObjectToJSONMap(context *Context, value interface{}, kind string) interface{} {
 	reflectValue := reflect.ValueOf(value)
 	for reflectValue.Kind() == reflect.Ptr {
@@ -78,7 +99,11 @@ func (res *Resource) convertObjectToJSONMap(context *Context, value interface{},
 	case reflect.Slice:
 		values := []interface{}{}
 		for i := 0; i < reflectValue.Len(); i++ {
-			values = append(values, res.convertObjectToJSONMap(context, reflectValue.Index(i).Addr().Interface(), kind))
+			if reflectValue.Index(i).Kind() == reflect.Ptr {
+				values = append(values, res.convertObjectToJSONMap(context, reflectValue.Index(i).Interface(), kind))
+			} else {
+				values = append(values, res.convertObjectToJSONMap(context, reflectValue.Index(i).Addr().Interface(), kind))
+			}
 		}
 		return values
 	case reflect.Struct:
@@ -96,8 +121,8 @@ func (res *Resource) convertObjectToJSONMap(context *Context, value interface{},
 			if meta.HasPermission(roles.Read, context.Context) {
 				if valuer := meta.GetFormattedValuer(); valuer != nil {
 					value := valuer(value, context.Context)
-					if meta.GetResource() != nil {
-						value = meta.Resource.(*Resource).convertObjectToJSONMap(context, value, kind)
+					if meta.Resource != nil {
+						value = meta.Resource.convertObjectToJSONMap(context, value, kind)
 					}
 					values[meta.GetName()] = value
 				}
@@ -107,10 +132,6 @@ func (res *Resource) convertObjectToJSONMap(context *Context, value interface{},
 	default:
 		return value
 	}
-}
-
-func (res *Resource) Decode(context *qor.Context, value interface{}) error {
-	return resource.Decode(context, value, res)
 }
 
 func (res *Resource) allAttrs() []string {
@@ -192,7 +213,7 @@ func (res *Resource) ShowAttrs(values ...interface{}) []*Section {
 		if values[len(values)-1] == false {
 			values = values[:len(values)-1]
 		} else {
-			res.IsSetShowAttrs = true
+			res.isSetShowAttrs = true
 		}
 	}
 	res.setSections(&res.showSections, values...)
@@ -383,7 +404,7 @@ Attrs:
 		if meta == nil {
 			meta = &Meta{}
 			meta.Name = attr
-			meta.base = res
+			meta.baseResource = res
 			if attr == primaryKey {
 				meta.Type = "hidden"
 			}
@@ -426,7 +447,9 @@ func (res *Resource) allMetas() []*Meta {
 }
 
 func (res *Resource) allowedSections(sections []*Section, context *Context, roles ...roles.PermissionMode) []*Section {
+	var newSections []*Section
 	for _, section := range sections {
+		newSection := Section{Resource: section.Resource, Title: section.Title}
 		var editableRows [][]string
 		for _, row := range section.Rows {
 			var editableColumns []string
@@ -443,7 +466,23 @@ func (res *Resource) allowedSections(sections []*Section, context *Context, role
 				editableRows = append(editableRows, editableColumns)
 			}
 		}
-		section.Rows = editableRows
+		newSection.Rows = editableRows
+		newSections = append(newSections, &newSection)
 	}
-	return sections
+	return newSections
+}
+
+func (res *Resource) configure() {
+	modelType := res.GetAdmin().Config.DB.NewScope(res.Value).GetModelStruct().ModelType
+	for i := 0; i < modelType.NumField(); i++ {
+		if fieldStruct := modelType.Field(i); fieldStruct.Anonymous {
+			if injector, ok := reflect.New(fieldStruct.Type).Interface().(resource.ConfigureResourceInterface); ok {
+				injector.ConfigureQorResource(res)
+			}
+		}
+	}
+
+	if injector, ok := res.Value.(resource.ConfigureResourceInterface); ok {
+		injector.ConfigureQorResource(res)
+	}
 }
